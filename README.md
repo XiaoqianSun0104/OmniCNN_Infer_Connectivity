@@ -95,7 +95,7 @@ Typical order:
 Run a static-network simulation:
 
 ```bash
-python scripts/02_simulate_static_network.py \
+python scripts/03_simulate_static_network.py \
   --dataFolderName data/network_smoke \
   --segFolderName static_network_1 \
   --simulationT 600000 \
