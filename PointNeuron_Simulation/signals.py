@@ -33,7 +33,7 @@ def ramp_input(Nt, t_ramp, amp=22, ifPlot=False):
         will give you a exp ramping from 0-22 in first 500 steps, and all 0 in the second 500 steps
     '''
     
-    
+
     t_flat = int(Nt-t_ramp)
     ramp = np.linspace(-t_ramp, t_flat, Nt)
 
@@ -80,7 +80,7 @@ def sin_input(Nt, dt, num_periods=4, amp=20, ifPlot=False):
     
     return(sin01)
 
-def pulse_input(Nt, step=50, last=1, amp=20, ifStart0=True, ifPlot=False):
+def pulse_input(Nt, step=50, last=1, amp=20, ifPlot=False):
     
     '''
     create a pulse input, each session has # step 0 + # last 1
@@ -88,7 +88,7 @@ def pulse_input(Nt, step=50, last=1, amp=20, ifStart0=True, ifPlot=False):
     e.g., with step=5, last=2 [0 0 0 0 0 1 1 0 0 0 0 0 1 1 ...] (5 0s + 1 1 + 5 0s + 1 1 ...)
     E.g.,
         Nt=1000, dt=0.1
-        pulse = pulse_input(Nt, step=50, last=5, ifStart0=True)
+        pulse = pulse_input(Nt, step=50, last=5)
         will give you a series of regular pulses, max=20, min=0, start=0, 18 pulses in total
 
     '''
@@ -123,7 +123,6 @@ def noisyOU_input(Nt, dt=0.1, tau_noise=10, sigma_noise=10, mu_noise=180, ifPlot
         - sigma_noise: fluctuation around the mu_noise
             - note that sigma_noise got muptiplied to xi (samples from "standard normal distribution" [-3, 3])
             - if sigma_noise = 1, then I_b mostly mu_noise-3, mu_noise+3
-
     
     '''
     

@@ -2,25 +2,14 @@
 # neuron.py
 # Author: Xiaoqian Sun, 06/04/2024
 # a base neuron class, change neuronType to change corresponding parameters
-
-#### need to work on gEE_bar, gEI_bar, gIE_bar, gII_bar ####
 '''
 
 
 # Import Packages
-import os 
-import math
-import random
 import logging
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from collections import defaultdict
 
-#import signals
 import signals
-# from Simulation.Version1 import signals
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -42,9 +31,6 @@ class neuronParas(object):
                  g_AHP=0.15, V_AHP=-80., tau_Ca=100., alpha_Ca=0.2, #AHP related for bursting
                  **kwargs):
     
-        #print('1. Enter neuronParas');print()
-        # no need to worry about **kwargs will change T/dt/neuronType values, that is not allowed
-        # only variables with default values can be changed in **kwargs
         self.T=T; self.dt=dt
         self.Nt = int(self.T/self.dt)
         self.neuronType = neuronType
@@ -104,19 +90,9 @@ class neuronParas(object):
             else:
                 logging.warning('No key in Object.paras named {0}'.format(k))
         
-        #print('2. In neuronParas, call self.update_attr()');print()
-        # calculations and update values in paras{}
-        self = self.update_attr()
-        #print('3. neuronParams, done self.update_attr');print()
+        self.update_attr()
 
     def update_attr(self):
-        '''
-        once values in paras got updated, we need to do some calculations 
-        because those calculations rely on the correct+final paras values
-        wrap those in a function so that whenever self.set() change some values, we can 
-        call self.update_attr() to update corresponding values 
-        '''
-        # incase T/dt change
         self.Nt = int(self.T/self.dt)
         self.range_t = np.arange(0, self.T, self.dt)
 
@@ -128,7 +104,6 @@ class neuronParas(object):
             self.paras['V_init'] = V_init
 
 
-        #print('2.1 Enter neuronParas, assignSpkTrain:', self.paras['ifAssignSpkTrain'], self.paras['assignSpkTrain']);print()
         
 
         # generate presynaptic poisson spike train
@@ -139,7 +114,6 @@ class neuronParas(object):
             # iteratively adjust spikes to make the distribution a real exp
             if self.paras['ifadjust_spkTrain']:      
                 assignSpkTrain = signals.adjust_expSpkTrain(assignSpkTrain, self.paras['rate'], self.T, self.dt, self.range_t)
-            #print('2.2 True and None, so generate PoissonSpkTrain:', self.paras['assignSpkTrain'] )
 
             # add bursting activity
             if self.paras['ifBursting']: 
@@ -155,10 +129,8 @@ class neuronParas(object):
             assignSynTrace = signals.generate_synapticTrace(self.paras['assignSpkTrain'], self.Nt, 
                                                             self.dt, self.paras['tau_stdp'])
             self.paras['assignSynTrace'] = assignSynTrace
-            #print('2.2 PoissonSpkTrain and No synTrace, so generate synTrace:', self.paras['assignSynTrace'] )
 
         
-        #print('2.4 Before exit neuronParas update_attr: assignSpkTrain=',self.paras['assignSpkTrain']);print()
         return(self)
 
 
@@ -202,9 +174,8 @@ class neuronParas(object):
             else:
                 setattr(self, k, v)
 
-            self.update_attr()
+        self.update_attr()
 
-        # after set, we need to call __init__() again in case any changed value would affect other values
 
     def get(self, key):
         """ 
@@ -223,11 +194,9 @@ class neuronParas(object):
                         attrNotExist_Flag=False
                         return (d[key])
             if attrNotExist_Flag:
-                logging.warning('No ke in Object named {0}'.format(key))
+                logging.warning('No key in Object named {0}'.format(key))
         else:
             return(getattr(self, key))
-
-
 
 
 
@@ -250,7 +219,6 @@ class Neuron(neuronParas):
                  **kwargs
                  ):
 
-        #print('A. Just entered Neuron, call super');print()
         super().__init__(T, dt, gE_bar, gI_bar, neuronType, g_Leak, tau_m, tref, 
                          V_initMethod,V_LeakReversal, V_fireThreshold, V_lowerbound, V_reset, V_init,
                          V_excReversal, V_inhReversal, tau_excSyn, tau_inhSyn, tau_stdp, 
@@ -258,7 +226,6 @@ class Neuron(neuronParas):
                          externalInput,
                          ifAssignSpkTrain, rate, assignSpkTrain, poissonSpk_seed, assignSynTrace,
                          **kwargs)
-        #print('B. Neuron, super done');print()
         self.dynamics={
             'spkTrain':np.zeros(self.Nt), # generated during simulation
             'memPotential': np.ones(self.Nt),
@@ -275,19 +242,11 @@ class Neuron(neuronParas):
             'spkTimes':[],
         }
 
-        #print('C. Neuron, about to call self.update_attr()');print()
-        # calculations and update values in paras{}
-        self = self.update_attr()
-        #print('D. Neuron, done self.update_attr');print()
+        self.update_attr()
 
 
     def update_attr(self):
-        #print('C.1 Enter Neuron super.update_attr');print()
-        super().update_attr()  # variables in neuronParas() are updated
-        
-        #print('C.2 Neuron, update_attr(), assignSpkTrain:', self.paras['assignSpkTrain']);print()
-        
-        # update dynamics{} in case T/dt changed
+        super().update_attr()  
         self.dynamics={
             'spkTrain':np.zeros( self.Nt), # generated during simulation
             'memPotential': np.ones( self.Nt)*self.paras['V_init'],
@@ -303,77 +262,7 @@ class Neuron(neuronParas):
 
             'spkTimes':[],
         }
-
-        #print('C.3 see if first call set gE =', self.dynamics['gE'])
-        #print('C.4 Exit Neuron update_attr()');print()
-
         return self
-
-    
-    def get_keysValues(self):
-
-        '''
-        return all values stored in the object
-            either direct attributes (obj.Nt)
-            or dicts in the object (Obj.neuronPara)
-        '''
-        return (self.__dict__)
-    
-    def get_keys(self):
-        '''
-        return a list of attributes name, variables that can be accessed from the object
-        '''
-        return (self.__dict__.keys())
-    
-    def set(self, params_dict):
-        """ 
-        Set key-value pairs. E.g.,
-            params_dict = {'V_excRevsal':16,  # in neuron.neuronPara{}
-                           'Nt':6}    # neuron.Nt, direct attribute
-            neuronObj.set(params_dict) to change corresponding values
-        """
-
-        for k, v in params_dict.items():
-    
-            if not hasattr(self, k):  # inside a {}
-                attrNotExist_Flag = True
-                
-                # loop through subdic, locate key and change value
-                for gr in list(self.__dict__.keys()):
-                        d = getattr(self, gr)
-                        if type(d) == dict:
-                            if k in d:
-                                d[k] = v
-                                attrNotExist_Flag=False
-                # if attrNotExist_Flag:
-                #     logging.warning('No key in Neuron Object named {0}'.format(k))
-            else:
-                setattr(self, k, v)
-
-            self.update_attr()
-
-        # after set, we need to call __init__() again in case any changed value would affect other values
-
-    def get(self, key):
-        """ 
-        Get a value for a given key, which can either a direct attribute, or a key inside a dict (neuronPara)
-        Raises an exception if no such group/key combination exists.
-        """
-
-        if not hasattr(self, key):  # inside a {}
-            attrNotExist_Flag = True
-            
-            # loop through subdic, and get value
-            for gr in list(self.__dict__.keys()):
-                d = getattr(self, gr)
-                if type(d) == dict:
-                    if key in d:
-                        attrNotExist_Flag=False
-                        return (d[key])
-            if attrNotExist_Flag:
-                logging.warning('No key in Neuron Object named {0}'.format(key))
-        else:
-            return(getattr(self, key))
 
 
 

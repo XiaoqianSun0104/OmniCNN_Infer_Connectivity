@@ -7,7 +7,7 @@
 #   cross subgroups connection (bi)
 #   external to one subgroup (one)
 #   ...
-# **** this should support differnet topology netowrk
+# **** this should support differnet topology networks
 '''
 
 
@@ -33,10 +33,10 @@ warnings.filterwarnings('ignore')
 class Connectivity(object):
     '''
     variables that could be accessed:
-    N, Ne, Ni, paras{}, CM, CM_df, adjList, outgingCs, incomingCs, CMW, CMW_df
+    N, Ne, Ni, paras{}, CM, CM_df, adjList, outgoingCs, incomingCs, CMW, CMW_df
         - CM, CM_df   : connectivity matrix/dataframe
         - adjList     : adjcent list from CM, call .print_adjList() to print it out
-        - outgingCs   : as a presynaptic neuron (A), connections from A to other neurons
+        - outgoingCs   : as a presynaptic neuron (A), connections from A to other neurons
         - incomingCs  : as a postsynaptic neuron (A), connections point to A
         - CMW, CMW_df : connectivity matrix with weights multiplied
     '''
@@ -69,24 +69,14 @@ class Connectivity(object):
                 self.CM=v
             else:
                 logging.warning('No key in Object.CMWParas named {0}'.format(k))
-        
-        
-        # calculations and update values in CMWParas{}
+
         self.update_attr()
 
 
-        
-
     def update_attr(self):
-        '''
-        once values in CMWParas got updated, we need to do some calculations 
-        because those calculations rely on the correct+final CMWParas values
-        wrap those in a function so that whenever self.set() change some values, we can 
-        call self.update_attr() to update corresponding values 
-        '''
         if type(self.CM) == np.ndarray: # if connectivity matrix is given
             self.CM_df = M_to_df(self.CM, self.Ne, self.Ni, self.cols)
-        else: # if not
+        else:
             self.CM, self.CM_df = self.generate_connectivityMatrix()
         
         # get connectivity attributes
@@ -97,14 +87,12 @@ class Connectivity(object):
         # add weights to connectivity (0/1)
         self.CMW, self.CMW_df = self.addWeights()
 
-        # return (self)
-
     
     def generate_connectivityMatrix(self, ifVerbose=False):
     
         '''
         generate connectivity matrix
-        each row is a sigle neuron and randomly select certian number of neurons to connect
+        each row is a single neuron and randomly select certain number of neurons to connect
         E.g.,
             - 1E, randomly select num=cee exc neurons to connect
             - 1E is the presynaptic neuron and it had cee outgoing connections to other exc neurons
@@ -148,28 +136,12 @@ class Connectivity(object):
         return(CMW, CMW_df)
     
     def get_keysValues(self):
-
-        '''
-        return all values stored in the object
-            either direct attributes (obj.Nt)
-            or dicts in the object (Obj.neuronPara)
-        '''
         return (self.__dict__)
     
     def get_keys(self):
-        '''
-        return a list of attributes name, variables that can be accessed from the object
-        '''
         return (self.__dict__.keys())
     
     def set(self, params_dict):
-        """ 
-        Set key-value pairs. E.g.,
-            params_dict = {'V_excRevsal':16,  # in neuron.neuronPara{}
-                           'Nt':6}    # neuron.Nt, direct attribute
-            neuronObj.set(params_dict) to change corresponding values
-        """
-
         for k, v in params_dict.items():
     
             if not hasattr(self, k):  # inside a {}
@@ -190,11 +162,6 @@ class Connectivity(object):
         self.update_attr()
 
     def get(self, key):
-        """ 
-        Get a value for a given key, which can either a direct attribute, or a key inside a dict (neuronPara)
-        Raises an exception if no such group/key combination exists.
-        """
-
         if not hasattr(self, key):  # inside a {}
             attrNotExist_Flag = True
             
@@ -215,30 +182,23 @@ class Connectivity(object):
 
 # some general functions outside _connec class
 #-------------------------------------------------------------------------------------------------
-def generate_randomInts(start, stop, num, autapse):
-    '''
-    generate a list of integers (num) in a range (start, stop) without this number autapse
-    e,g., crate a list of 3 ints in range (0, 9) without number 3: [1, 5, 7]
-    this list could have duplicates
-    
-    Note that autapse in neuroscience means self-connection
-    '''
-    
-    randInts = []
-    while len(randInts) < num:
-        
-        randInt = random.randint(start, stop)
-        if randInt != autapse:
-            randInts.append(randInt)
-        
-    
-    return (sorted(randInts))
+def generate_randomInts(start, stop, num, autapse, replace=False):
+    candidates = [i for i in range(start, stop + 1) if i != autapse]
+
+    if len(candidates) == 0:
+        raise ValueError("No valid candidates available after excluding autapse.")
+
+    if not replace and num > len(candidates):
+        raise ValueError(f"Cannot sample {num} unique integers from only {len(candidates)} valid candidates.")
+
+    if replace:
+        rand_ints = random.choices(candidates, k=num)
+    else:
+        rand_ints = random.sample(candidates, k=num)
+
+    return sorted(rand_ints)
 
 def generate_randomConnection(preSyn_N, postSyn_N, connecP=0.5, weight=None, ifAutapse=True):
-    '''
-    simply:
-    for each presynaptic neuron, randomly select connecP of postsynaptic neurons to connect with
-    '''
     
     local_connectivity = np.zeros((preSyn_N, postSyn_N))
     numConnection = int(connecP * postSyn_N)
@@ -252,12 +212,6 @@ def generate_randomConnection(preSyn_N, postSyn_N, connecP=0.5, weight=None, ifA
     return local_connectivity
     
 def generate_normDistConnection(preSyn_N, postSyn_N, mean, std, ifShuffle=True):
-    '''
-    Simply:
-    each presynaptic neuron connect with all postsynaptic neuron
-    the weights form a normal distribution
-    can choose the weight or not
-    '''
     
     local_connectivity = np.zeros((preSyn_N, postSyn_N))
     
@@ -268,15 +222,13 @@ def generate_normDistConnection(preSyn_N, postSyn_N, mean, std, ifShuffle=True):
         
         local_connectivity[i] = weights
         
-        
-    # no negative weights
     local_connectivity[local_connectivity<0] = 0.05
     
     return (local_connectivity)
     
 def M_to_df(connections, Ne, Ni, cols=None, dataType=float):
     '''
-    form the matrix to a dataframe for vetter visualization
+    form the matrix to a dataframe for better visualization
     '''
     if type(cols)==type(None):
         cols = [str(i+1)+'E' for i in range(Ne)] + [str(i+1)+'I' for i in range(Ni)]
@@ -284,13 +236,6 @@ def M_to_df(connections, Ne, Ni, cols=None, dataType=float):
     return (CM_df)
 
 def adjMatrix_2_adjList(connections):
-    
-        '''
-        Cnvert an adjacen Adjacency Matrix to an Adjacency List
-        So that we don't need to access the matrix every time
-        we just pull out the postsynaptic neurons by key(presynaptic neuron) or vice versa
-
-        '''
         # make sure adjMatrix is an array
         import numpy as np
         if type(connections) != np.ndarray:
@@ -305,10 +250,6 @@ def adjMatrix_2_adjList(connections):
         return (adjList)
 
 def print_adjList(adjList):
-    '''
-    how online methods print out adjacency list, but this format doesn't make sense to me
-    '''
-
     for i in adjList:
         print(i, end ="")
         
@@ -318,13 +259,6 @@ def print_adjList(adjList):
         print()
     
 def get_connection_ExcInh(connections, neuronIndex, Ne):
-    '''
-    get connecting neurons to this neuron (neuronIndex) by type
-    if the intput connections is incomingC, then we're picking presynaptic neurons
-    if the input connection is outgoingC, then we're picking postsynaptic neurons that this neuron points to
-    '''
-    
-    
     conn = np.array(connections[neuronIndex])
     
     idx_exc = list(conn[conn<Ne])
@@ -333,22 +267,6 @@ def get_connection_ExcInh(connections, neuronIndex, Ne):
     return (idx_exc, idx_inh)
 
 def connecHalf_randomC(local_connec, connectP=None, connectN=None):
-    
-    '''
-    previously, we arrange the connectivity matrix in :
-        - rows of exc-inh, which are presynaptic neurons
-        - cols of exc-inh, which are postsynaptic neurons
-    and then we have p_exc2exc, p_exc2inh, p_inh2exc, p_inh2inh
-    so for each prosyanptic neuron (row), we randomly select # postsynaptic neurons (col) and assign 1 as connection
-    
-    However, when work on fly olfactory structure, we have many layers of neurons and so a giant connectivity 
-    table. The table will still be in row-pre and col-post format as input to simulation object.
-    But during the process when you create local connections, you may just create connections from ORNs to PNs.
-    
-    This function is to solve this question. Basically, given 1 local matrix and 1 p, perform random selection
-    and return the local connecitvity.
-    
-    '''
     pre_num, post_num = local_connec.shape
     
     if connectP:
@@ -367,10 +285,6 @@ def connecHalf_randomC(local_connec, connectP=None, connectN=None):
     return (local_connec)
     
 def addWeight_2_connectivityMatrix(CM, CM_df, Ne, we2e, we2i, wi2e, wi2i):
-    
-    '''
-    if there is a connection, modify that connection with 1*wij to reflect the connection strength
-    '''
     
     CMW = CM.copy()
     CMW[0:Ne, 0:Ne] = CMW[0:Ne, 0:Ne]*we2e
@@ -397,10 +311,9 @@ def CMW_upperBound(CMW, Ne, we2e_max, we2i_max, wi2e_max, wi2i_max):
     
     return(CMW)
 
-def get_chaningWeights(CMW_rlist, incomingCs, neuronIdx, Ne):
+def get_changingWeights(CMW_rlist, incomingCs, neuronIdx, Ne):
     '''
-    here, neuronIdx is the postsynaptic neuron
-    we try to get its presynaptic neurons' weights from CMW_rlist
+    here, neuronIdx is the postsynaptic neuron, get its presynaptic neurons' weights from CMW_rlist
     '''
     
     pre_exc, pre_inh = get_connection_ExcInh(incomingCs, neuronIdx, Ne)
@@ -418,9 +331,9 @@ def get_chaningWeights(CMW_rlist, incomingCs, neuronIdx, Ne):
 
     return(WE, WI)
 
-def clip_externalNeurorn(CMW, Xe, Xi, Se, Si):
+def clip_externalNeuron(CMW, Xe, Xi, Se, Si):
     '''
-    in a network, there will be some neuron got assgined spike trains and provide drive to the netowrk
+    in a network, there will be some neuron got assgined spike trains and provide drive to the networks
     these neurons don't receive input (synapses) from other neurons, so we mgith want to clip them
     note that these neurons need to be at the beginning of each section
     e.g., Xe=10 (10 exc providing exc drive) and idx: 0 - 9

@@ -10,15 +10,12 @@
 import os 
 import re
 import math
-import random
 import pickle
 import scipy as sp
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from tslearn import metrics
 from scipy.stats import kstest
-import scipy.special as special
 from scipy.signal import correlate
 from scipy.stats import expon, entropy
 from scipy.spatial.distance import cdist
@@ -28,16 +25,11 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.stattools import adfuller, kpss, grangercausalitytests
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedShuffleSplit
 
 # from spycon.coninf import GLMCC, GLMPP
 import matplotlib.pyplot as plt
-from collections import defaultdict
 
 import neuron, simulation
 from visualization import *; from utils import *

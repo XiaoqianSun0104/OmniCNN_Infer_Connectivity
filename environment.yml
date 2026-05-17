@@ -1,0 +1,22 @@
+name: omnicnn-connectivity
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - statsmodels
+  - h5py
+  - jupyterlab
+  - pytorch
+  - torchvision
+  - cpuonly
+  - pip:
+      - tslearn
+      - shap

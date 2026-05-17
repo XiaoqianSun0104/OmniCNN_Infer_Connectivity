@@ -1,27 +1,21 @@
 '''
 # simulation.py
 # Author: Xiaoqian Sun, 07/03/2024
-# Run simulation object and update dynamics in neuron/connectivity objects
+# This module implements the Simulator class, which updates membrane dynamics, synaptic conductances, 
+# spike generation,and synaptic plasticity over time.
 '''
 
 
 # Import Packages
 import os 
-import math
 import time
 import copy
-import random
 import logging
 import pickle
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from collections import defaultdict
 
 from utils import *
 import neuron, connectivity
-# from Simulation.Version1 import neuron, connectivity
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -39,9 +33,7 @@ class Simulator(connectivity.Connectivity):
                  w_exc2exc=0.1, w_exc2inh=0.1, w_inh2exc=0.1, w_inh2inh=0.1,
                  **kwargs
                  ):
-        # T/dt needs to be set first because the excuting order is:
-        # set T/dt -- super.init, invoke update_attr(), then invoke update_attr() in super, then update Nt 
-        # that is to say, you rewrite update_attr():super(), then update_arrt() in super.__init__() also changes
+        
         self.T = T; self.dt = dt; self.maxns=maxns; self.neurons = neurons; self.Nt = int(self.T/self.dt)
         
         super().__init__(N, Ne, Ni, CM, cols,
@@ -52,16 +44,9 @@ class Simulator(connectivity.Connectivity):
      
     def update_attr(self):
         super().update_attr()
-
-        # incase T/dt change
         self.Nt = int(self.T/self.dt)
-
         return(self)
 
-
-    ######################################################################################
-                                #### Notes are written here ####
-    ######################################################################################
     def run(self, ifVerbose=False, pickN=None, when2CalExp=None):
         startTime = time.time()
 
@@ -69,15 +54,14 @@ class Simulator(connectivity.Connectivity):
         netSpk = np.zeros((2, self.maxns))
         sb = np.zeros(self.N)        # to record whether a neuron fires or not in each t (sb-spike boolean)
         x = np.zeros(self.N)         # store momentary synTrace value for each neuron
-        v = self.assign_initialV()   # stroe momentary membranePotential
+        v = self.assign_initialV()   # store momentary membranePotential
         gE = np.zeros(self.N); gI = np.zeros(self.N)   # momentary gE/gI 
         refstate = np.zeros(self.N, dtype=int)         # refractory period
         CMW_list = []; CMW_list.append(self.CMW.copy())# record weight changing
         
         # save mean weights over time
         save_interval = int(100/self.dt)
-        CMWM_temp_list = []; CMWM_temp_list.append(self.CMW.copy()) # store weith between current and next saving interval
-
+        CMWM_temp_list = []; CMWM_temp_list.append(self.CMW.copy()) # store weights between current and next saving interval
 
 
         # if check firing rate shape
@@ -94,22 +78,14 @@ class Simulator(connectivity.Connectivity):
 
                 # if neurons have pre-assigned-spkTrains, they don't need simulation
                 # they're only providing spk-input to other neurons
-                # if not True: if not have pre-assigned-spkTrains
                 if not neuronObj.get('ifAssignSpkTrain'): 
                     pre_exc, pre_inh = connectivity.get_connection_ExcInh(self.incomingCs, m, self.Ne)
-                    
-                    # if it<50:
-                    #     print('pre_exc:', pre_exc, 'for m=', m)
-                    #     print('pre_inh:', pre_inh, 'for m=', m)
-                    #     print('it=', it, 'gE[m]=', gE[m])
-                    #     print('it=', it, 'gI[m]=', gI[m])
+
                     # synaptic trace decay & record
                     x[m] = x[m] - (self.dt/neuronObj.paras['tau_stdp']) * x[m]
                     neuronObj.dynamics['synTrace'][it] = x[m]
 
                     # calculate gE/gI using w(t-1) & record
-                    # note that we used CMW[pre_exc, m] here because m now is the postsynaptic neuron
-                    # we want to get exc presynaptic neurons connect to m
                     # this dynamics aligns with static synapse:https://compneuro.neuromatch.io/tutorials/W2D3_BiologicalNeuronModels/student/W2D3_Tutorial3.html#section-1-1-simulate-synaptic-conductance-dynamics
                     gE[m] = gE[m] - (self.dt/neuronObj.paras['tau_excSyn'])*gE[m] + (neuronObj.paras['gE_bar']*self.CMW[pre_exc, m]*sb[pre_exc]).sum()
                     gE[m] = max(1e-5, gE[m]) # lower bound
@@ -131,7 +107,7 @@ class Simulator(connectivity.Connectivity):
                     post_exc, post_inh = connectivity.get_connection_ExcInh(self.outgoingCs, i, self.Ne)# i's postsynaptic exc/inh neurons
 
                     #---------------update v---------------------------------------
-                    if refstate[i] <= 0: # free from refactory period 
+                    if refstate[i] <= 0: # free from refractory period 
                         LeakC = -(v[i]-neuronObj.paras['V_LeakReversal'])
                         Ecurr = -(gE[i]*(v[i]-neuronObj.paras['V_excReversal']))/neuronObj.paras['g_Leak']
                         Icurr = -(gI[i]*(v[i]-neuronObj.paras['V_inhReversal']))/neuronObj.paras['g_Leak']
@@ -149,20 +125,20 @@ class Simulator(connectivity.Connectivity):
                         # lower bound
                         v[i] = max(v[i], neuronObj.paras['V_lowerbound'])
 
-                    else: # if this cell is still in refactory period
+                    else: # if this cell is still in refractory period
                         LeakC=0; Ecurr=0; Icurr=0; Xcurr=0
                         if refstate[i] > 1:
                             v[i] = neuronObj.paras['V_fireThreshold']
                         else:
                             v[i] = neuronObj.paras['V_reset']
-                        # count down refactory period
+                        # count down refractory period
                         refstate[i] -= 1
 
                     #---------------check if a spike occurs---------------------------
                     if v[i] >= neuronObj.paras['V_fireThreshold'] and refstate[i] <= 0 and ns < self.maxns:
 
-                        refstate[i] = neuronObj.paras['Ntref'] # reset refactory period
-                        v[i] = neuronObj.paras['V_fireThreshold'] + 5 # this +5 is to make spike more prominent to see
+                        refstate[i] = neuronObj.paras['Ntref']         # reset refractory period
+                        v[i] = neuronObj.paras['V_fireThreshold'] + 5  # transient overshoot added for visualization purposes
                         neuronObj.dynamics['spkTrain'][it] = 1
                         neuronObj.dynamics['spkTimes'].append(it * self.dt) 
                         netSpk[0, ns] = it * self.dt
@@ -174,21 +150,15 @@ class Simulator(connectivity.Connectivity):
                         x[i] = x[i] + 1
                         neuronObj.dynamics['synTrace'][it] = x[i]
                         
-                        # update presynaptic weight to i (now i is postsynaptic neuron)
-                        # if exc->i, i(post) fired, 𝑊_𝑖𝑗 → 𝑊_𝑖𝑗 + 𝜁𝑥_𝑗                     
+                        # update presynaptic weight to i 
                         self.CMW[pre_exc, i] += neuronObj.paras['lr_stdp_postSyn']*x[pre_exc]
-                        # if inh->i, i(post) fired, 𝑊_𝑖𝑗 → 𝑊_𝑖𝑗 + 𝜂𝑥_𝑗 (inhibition not strong enough)    
                         self.CMW[pre_inh, i] += neuronObj.paras['lr_istdp']*x[pre_inh]
                         
-                        # update postsynaptic weight from i (now i is the presynaptic neuron)
-                        if neuronObj.neuronType==0: #e-e, e-i
-                            # i(pre, exc) fired, 𝑊_𝑖𝑗 → 𝑊_𝑖𝑗 − 𝛾𝑥_𝑖 (note that 𝑥_𝑖 referes to postsynaptic neuron synaptic trace)
-                            # i (pre) fire before post, 𝑊_𝑖𝑗 decreases
+                        # update postsynaptic weight from i
+                        if neuronObj.neuronType==0:
                             self.CMW[i, post_exc] -= neuronObj.paras['lr_stdp_preSyn']*x[post_exc]
                             self.CMW[i, post_inh] -= neuronObj.paras['lr_stdp_preSyn']*x[post_inh]
-                        else: #i-e, i-i
-                            # i(pre, inh) fired, 𝑊_𝑖𝑗 → 𝑊_𝑖𝑗 + 𝜂(𝑥_𝑖−𝛼)
-                            # if fire close enough(x_i > 𝛼), inhibition is not strong enough, potentiate 𝑊_𝑖𝑗
+                        else:
                             self.CMW[i, post_exc] += neuronObj.paras['lr_istdp']*(x[post_exc]-neuronObj.paras['lr_istdp_window'])
                             self.CMW[i, post_inh] += neuronObj.paras['lr_istdp']*(x[post_inh]-neuronObj.paras['lr_istdp_window'])
                                         
@@ -199,31 +169,27 @@ class Simulator(connectivity.Connectivity):
                     neuronObj.dynamics['Xcurr'][it]=Xcurr*neuronObj.paras['g_Leak']
                     neuronObj.dynamics['LeakC'][it]=LeakC*neuronObj.paras['g_Leak']
                     
-
-                    #if i==pickN and it%20==0 and ifVerbose:
-                    if i==pickN and ifVerbose:
+                    if i==pickN and it%2000==0 and ifVerbose:
                         print('at time='+str(it))
                         print('  gE='+str(round(gE[i],3)), '| gI='+str(round(gI[i],3)))
                         print('  EPSP='+str(round(Ecurr,3)) ,'| IPSP='+str(round(Icurr,3)), '| Xcurr='+str(Xcurr), '| LeakC='+str(round(LeakC,3)))
                         print('  dv = '+str(round(dv,3)), '| v_it = '+str(v[i]))
                         print()
                     
-                
-                else: # a neuron has pre-assign-spkTrain
+                else: 
                     x[i] = neuronObj.get('assignSynTrace')[it]
                     sb[i] = neuronObj.get('assignSpkTrain')[it]
 
-            
             
             # after a whole iteration, check upper bounds and save weight matrix
             self.CMW = connectivity.CMW_upperBound(self.CMW, self.Ne, 
                                       self.CMWParas['we2e_max'], self.CMWParas['we2i_max'], 
                                       self.CMWParas['wi2e_max'], self.CMWParas['wi2i_max'])
             
-            # disable this for now, storing CMW at each it would explode array memory error
-            #CMW_list.append(self.CMW.copy())
+            # storing CMW at every timestep is memory-intensive and currently disabled
+            # CMW_list.append(self.CMW.copy())
             if it%save_interval == 0:
-                if CMWM_temp_list:       # make sure the list is not empty
+                if CMWM_temp_list: 
                     mean_CMW = np.mean(np.stack(CMWM_temp_list), axis=0)
                     CMW_list.append(mean_CMW.copy())
                     CMWM_temp_list.clear()  # reset to store next # wegihts
@@ -276,7 +242,7 @@ class Simulator(connectivity.Connectivity):
         return (self.__dict__.keys())
     
     def get_neuronKeys(self):
-        return(self.neuorns[0].get_keys())
+        return(self.neurons[0].get_keys())
     
     def set(self, params_dict):
         """ 
@@ -332,8 +298,6 @@ class Simulator(connectivity.Connectivity):
     def copy(self):
         # return fully independent copy of an object
         return copy.deepcopy(self)
-
-
 
 
 

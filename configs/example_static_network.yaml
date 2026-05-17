@@ -1,0 +1,17 @@
+# Example configuration for static-network simulations.
+# Current scripts use argparse; this file documents recommended parameters.
+
+dataFolderName: C_Data
+segFolderName: static_network
+dt: 1.0
+simulationT: 600000
+num_Xe: 10
+num_Xi: 10
+num_Se: 80
+num_Si: 20
+p_exc2exc: 0.1
+p_exc2inh: 0.25
+p_inh2exc: 0.25
+p_inh2inh: 0.1
+mu_Se: 180.0
+mu_Si: 200.0
